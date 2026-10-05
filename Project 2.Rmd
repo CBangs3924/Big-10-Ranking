@@ -1,0 +1,450 @@
+---
+title: 'MTH 308: Linear Algebra'
+output:
+  html_document:
+    df_print: paged
+---
+
+## Project 2: Sports Ranking
+
+By: Connor Bangs, Seth Barnick
+
+MTH 308: Linear Algebra
+
+Project parts:
+
+-   Part 1: Colley method
+-   Part 2: Massey method
+-   Part 3: Application to real data
+-   Part 4: Cutting edge
+-   Part 5: Group member contributions
+
+### Instructions
+
+Complete each part as instructed. You are encouraged to work in groups, though you may work independently if you choose.
+
+<u>Submission:</u> Complete the following notebook in order. Once done, save the notebook and upload the produced HTML file to Canvas.
+
+<u>Rubric:</u> 40 total points, 10 points for each part.
+
+### Project Description
+
+In sports leagues, ranking teams can be challenging because not every team plays every other team. A simple approach is to rank teams by **winning percentage**, but this method only reflects the teams a given team has played and does not account for **strength of schedule**. For example, two teams with the same record may have faced opponents of very different strength.
+
+In this project, you will explore how **linear algebra can be used to construct more informative rankings** from game results. In particular, you will study two well-known ranking methods: the **Colley method**, which uses wins and losses to form a linear system, and the **Massey method**, which incorporates score differentials and leads to a least-squares formulation. Both methods produce a **rating vector** for the teams by solving a matrix equation.
+
+To learn about these methods, you will read the paper: [Bracketology: How Can Math Help?](https://ww2.amstat.org/mam/2010/essays/ChartierBracketology.pdf)
+
+Using the ideas from the paper, you will explain the two approaches and apply them to a small dataset of game results. You will construct the matrices involved in each method, compute the team ratings, and compare the rankings produced.
+
+The goal of this project is to see how concepts from linear algebra—such as **systems of equations, matrices, and least squares**—can be applied to analyze real-world data and produce meaningful rankings.
+
+### Toy dataset
+
+#### Sample college basketball scores
+
+![](scores.png){height="100"}
+
+#### Colley's method rating results to reproduce
+
+![](colley.png){height="100"}
+
+#### Massey's method rating results to reproduce
+
+![](massey.png){height="100"}
+
+```{r}
+# 2025 - 2026 season
+df_teams <- read.csv('big10_teams.csv', header = FALSE)
+colnames(df_teams) <- c('Team_Id', 'Team')
+
+df_scores <- df_scores <-read.csv('big10_scores.csv', header = FALSE) # massey website game score data
+df_scores <- df_scores [,c(3,5,6,8)]
+colnames(df_scores) <- c('Team_1_Id', 'Score_1', 'Team_2_Id', 'Score_2')
+
+df_scores <- merge(df_scores , df_teams, by.x = "Team_1_Id", by.y = "Team_Id")
+colnames(df_scores )[colnames(df_scores ) == "Team"] <- "Team_1"
+df_scores <- merge(df_scores, df_teams, by.x = "Team_2_Id", by.y = "Team_Id")
+colnames(df_scores )[colnames(df_scores ) == "Team"] <- "Team_2"
+df_scores <- df_scores[,c('Team_1', 'Score_1', 'Team_2', 'Score_2')]
+df_scores$Game <- row.names(df_scores)
+
+df1 <- df_scores[, c('Game', 'Team_1', 'Score_1')]
+colnames(df1) <- c('game', 'player', 'score')
+df2 <- df_scores[, c('Game', 'Team_2', 'Score_2')]
+colnames(df2) <- c('game', 'player', 'score')
+df <- rbind(df1,df2)
+
+str(df)
+
+df_scores$Point_Differential <- df_scores$`Score_1` - df_scores$`Score_2`
+
+# Create a clearer display table
+games_display <- df_scores[, c('Team_1', 'Score_1', 'Team_2', 'Score_2', 'Point_Differential')]
+
+print(games_display)
+
+
+```
+
+### Part 1: Colley’s Method
+
+Carefully read **Section 2** of the paper and complete the following tasks.
+
+1.  **Explain the Method**
+
+    Provide a clear explanation of **Colley’s ranking method**. Your explanation should describe how the method uses wins, losses, and the schedule of games to construct a **linear system whose solution gives team ratings**. Where appropriate, reference ideas from this course (for example, matrices, systems of equations, and solving linear systems).
+
+    Your explanation should be written **in your own words**. You may use ideas from the paper, but do not copy text or include screenshots of the paper.\
+    \
+    Colley used Laplace's rule of succession to make a team's winning into the equation r_i=(1+w_i)/(2+t_i) instead of their standard win percentage which is wins/losses. Another way to write Colley's method is r_i = .5((2+(w_i-l_i)+t_i)/(2+t_i)) where w_i is wins, l_i is losses, t_i is total games, and r_i is the team's ranking. The main purpose of the Colley method is that it factors in opponent team's rankings in wins and loses when predicting a team's ranks, and from the previous equation written down you can see that if a team has the same number of wins to losses they will have a win percentage of 1/2. This one half is important because if you have more wins than losses you'll be above 1/2 and if you have more losses than wins you will be below 1/2. After the previous equation Colley takes it one step further and they used this equation to find each teams ranking one at a time or you can make it into a linear system using Cr=b. C is called the "Colley Matrix" where the diagonal entries come from 2+t_i, while the off diagonal entries come from -n_ij which comes from the number of games between team i and team j. Vector r is the ranking of each team, and vector b's components come from b_i=1+.5(w_i - l_i). Another main point of Colley's method is that the average of the ratings is always 1/2. Overall the Colley's method only uses wins and loses as data points and the score of each game has no affect on the ratings.
+
+2.  **Laplace’s Rule of Succession**
+
+    Colley’s method is motivated by **Laplace’s rule of succession**. Using an external reference, explain what this rule states and how it is used to estimate probabilities. Then describe **how this idea applies to sports rankings** in Colley’s method.
+
+    Be sure to **cite the reference** you use.\
+    \
+    The rule of succession is based on an experiment that we know both failures and success are possible with it ran n independently times, and get s successes, and n-s failures and the goal is to find the probability that the next repetition will be a success. The formula is s+1/n+2. There is numbers added because there is pseudo count which is from stating that we know both a failure and a success is possible. Meaning that there is prior belief that two repetitions have been completed, adding two to n, and adding one to s from the belief that in the two trials there was one success. This can be applied to sports rankings in Colley's method by classifying a win as a success and the number of games is the n variable. You can then use this to get the probability that the next game will either be a loss or a win based on their record. Colley replaces the normal win percentage which is wins/games with the rule of succession. Colley then refined the rule of succession with a system of linear equations that also accounts for the strength of the schedule a team has.
+
+3.  **Reproduce the Example in R**
+
+    Write **R code** that constructs the Colley matrix and computes the team ratings for the **five-team example given in the paper**. Your code should:
+
+    -   construct the Colley matrix and right-hand-side vector,
+    -   solve the resulting linear system, and
+    -   report the team ratings.
+
+    To make your code reusable later in the project, you should implement your approach as an **R function** (for example, a function that takes game results as input and returns the team ratings).
+
+    ```{r}
+    colley_ratings <- function(wins, losses, games_matrix) {
+        n_i <- rowSums(games_matrix)
+          
+          
+        C <- -games_matrix
+        diag(C) <- 2 + n_i
+          
+          
+        b <- 1 + (wins - losses) / 2
+          
+        r <- solve(C, b)
+          
+        teams <- colnames(games_matrix)
+        results <- data.frame(
+          Team   = teams,
+          Wins   = wins,
+          Losses = losses,
+          Rating = round(r, 4)
+        )
+        results <- results[order(-results$Rating), ]
+        results$Rank <- 1:nrow(results)
+        rownames(results) <- NULL
+        
+        return(results)
+    }
+
+
+        teams <- c("Duke", "Miami", "UNC", "UVA", "VT")
+
+        games_matrix <- matrix(c(
+          0, 1, 1, 1, 1,
+          1, 0, 1, 1, 1,
+          1, 1, 0, 1, 1,
+          1, 1, 1, 0, 1,
+          1, 1, 1, 1, 0
+        ), nrow=5, byrow=TRUE, dimnames=list(teams, teams))
+
+        wins   <- c(0, 4, 2, 1, 3)
+        losses <- c(4, 0, 2, 3, 1)
+
+
+        colley_ratings(wins, losses, games_matrix)
+    ```
+
+### Part 2: Massey’s Method
+
+Carefully read **Section 3** of the paper and complete the following tasks.
+
+1.  **Explain the Method**
+
+    Provide a clear explanation of **Massey’s ranking method**. Your explanation should describe how game results and **score differentials** are used to construct equations that produce team ratings. Where appropriate, reference ideas from this course (for example, matrices and systems of equations).
+
+    Your explanation should be written **in your own words**. You may use ideas from the paper, but do not copy text or include screenshots of the paper.
+
+    Massey's ranking method uses matrices to find and rank the teams based on game results and score differential. Massey's method is uses both the team rating by having r1 - r2 which which equals the point differential to create a linear system. These groups of linear systems are used to calculate the outcome of games based on the wins and losses of teams. To solve these ratings we use a linear system of Mr = p where the matrix M which is n x n has the number of games played in the diagonal entries and the negative number of times they played each team. Where P is the cumulative point differential of all the games played. To solve this equation we cant just solve the linear system but would have to replace the bottom row of the matrix M with a row of 1's, then replace the bottom entry of the vector p with a 0. This works because it shows how the teams are ranked, if teams have positive ratings then they are above average, same with teams with negative ratings are below average.
+
+2.  **Least Squares**
+
+    Massey’s method is related to the **method of least squares**, which is a technique used when a system of equations cannot be solved exactly. Using an external reference (your textbook is acceptable), explain the basic idea of the least squares method in simple terms. Then describe **how this idea applies to sports rankings** in Massey’s method.
+
+    You are **not expected to derive the least squares formulas**, only to explain the idea and how it is used in this context.
+
+    Be sure to **cite the reference** you use.\
+    \
+    The least squares method is used to find the best approximate solution to an inconsistent matrix. The least squares method also has an error factor that shows there is a range for the approximate solutions. This connects to Massey's method because it find the score difference between team A and team B, and also finds the score difference between team B and C, and combines the difference to see what the score would be for team A vs team C. However, this is never correct as basketball is a very hard sport to predict which leads this to be an inconsistent matrix which means that if it were solved there would be no solution. However, Massey's uses least squares to find the optimal rating of teams by sorting through all of the games and using the games as data and then uses least squares to get the best approximate with the lowest margin of error.\
+    \
+    Reference: Linear Algebra and its Applications (textbook), and notes from class
+
+3.  **Reproduce the Example in R**
+
+    Write **R code** that constructs the Massey matrix and computes the team ratings for the **five-team example given in the paper**. Your code should:
+
+    -   construct the Massey matrix and right-hand-side vector,
+    -   solve the resulting system, and
+    -   report the team ratings.
+
+    As in Part 1, you should implement your approach as an **R function** so that it can be reused later in the project.
+
+```{r}
+M <- matrix(c(4, -1, -1, -1, -1,
+              -1, 4, -1, -1, -1,
+              -1, -1, 4, -1, -1, 
+              -1, -1, -1, 4, -1,
+              -1, -1, -1, -1, 4), nrow = 5, byrow = TRUE)
+
+p <- c(-124, 91, -40, -17, 90)
+
+M2 <- M
+M2[,5] <- c(1, 1, 1, 1, 1)
+
+p2 <- p
+p2[5] <- 0 
+
+ratings <- solve(M2, p2)
+
+team_names <- c("Duke", "Miami", "UNC", "UVA", "VT")
+massey_ranking <- data.frame(Team = team_names, ri = round(ratings, 1))
+massey_ranking$rank <- rank(-massey_ranking$ri)
+print(massey_ranking)
+```
+
+### Part 3: Application to Real Data
+
+Use **real sports data** from [Massey Ratings](https://masseyratings.com/data) and apply both **Colley’s** and **Massey’s** methods.
+
+-   Write R code to compute team ratings using the functions you implemented in Parts 1 and 2.\
+
+-   Summarize the **key findings** of your analysis. Which teams are ranked highest? Are there any surprising results compared to expectations? How do the methods differ in their rankings?
+
+    For massey's method we found that that the teams that were ranked the highest were Michigan, Illinois, Nebraska, Michigan St. and Purdue as the top 5 teams in the big ten for the 2025-2026 season. There isnt anything that surprised me from looking at the rankings because I expected the teams that did not lose a lot to be high which was the case. (to be done after seth completes his part).
+
+    Key findings from Colley's method is that the top 5 teams were Michigan, Michigan State, Nebraska, Illinois, and Wisconsin in that order. No there was not any surprising results the top 5 is the same for both in real life and when it was predicted by Colley's method. The only difference between the two methods is that the top 6 rankings they provided are a bit scrambled. For example Illinois and Michigan St are switched in rankings, and Wisconsin and Purdue are switched.\
+
+-   Compare your results to another ranking source (for example, official league standings, ESPN, or another ratings system). Comment on any similarities, differences, or patterns you notice.
+
+    For Massey's method there are a few similarities that I noticed but also some differences. Michigan and Illinois where the same but Nebraska and Michigan st. were switched, same with Wisconsin and UCLA they were switched around. One pattern that I noticed is that for the differences they are all within one rank of eachother, which could mean that if two teams have the same record or are within 1 win from eachother, some of them are switched around.
+
+    For Colley's Method the only differences are that the teams with the same records such as Michigan St, Nebraska, Illinois that all went 15-5 are just ranked in a different order than their official ranking. All other teams with the same records are in the same order as official rankings.\
+    \
+    Official Big 10 rankings from the Big10 website.\
+
+-   Reflect briefly on the **strengths and limitations** of the Colley and Massey methods when applied to real-world data. For example, consider how schedule imbalance or close scores might affect the ratings.
+
+    Colley's method is very simple. It only uses wins and losses, so it does not take into account close games or blowouts. The Laplace smoothing handles undefeated or winless teams gracefully without producing undefined ratings. The linear system always has a unique solution.
+
+    Massey's method incorporates point differentials, which carry more information than just win/loss. A team that consistently wins by large margins gets rewarded, which can better reflect true team strength early in the season when records are sparse.
+
+    The biggest weakness of both methods is an imbalance in schedule. A team with an easy schedule which in reality isn't a strong team will receive a high ranking based off of wins with Colley's method and running up the score with Massey's method. Close scores have a larger affect on Massey's rankings while there is no affect on Colley's rankings, a win is a win.
+
+```{r}
+#Colley's method
+  team_names <- sort(unique(c(df_scores$Team_1, df_scores$Team_2)))
+  n_teams    <- length(team_names)
+
+  wins         <- setNames(rep(0, n_teams), team_names)
+  losses       <- setNames(rep(0, n_teams), team_names)
+  games_matrix <- matrix(0, nrow=n_teams, ncol=n_teams,
+                         dimnames=list(team_names, team_names))
+
+  for (i in 1:nrow(df_scores)) {
+    t1 <- df_scores$Team_1[i]
+    t2 <- df_scores$Team_2[i]
+    
+    games_matrix[t1, t2] <- games_matrix[t1, t2] + 1
+    games_matrix[t2, t1] <- games_matrix[t2, t1] + 1
+    
+    wins[t1]   <- wins[t1]   + 1
+    losses[t2] <- losses[t2] + 1
+  }
+
+  # ---- Build Colley matrix C ----
+  n_i      <- rowSums(games_matrix)
+  C        <- -games_matrix
+  diag(C)  <- 2 + n_i
+
+  # ---- Build b vector ----
+  b <- 1 + (wins - losses) / 2
+
+  # ---- Solve for ratings ----
+  r <- solve(C, b)
+
+  # ---- Display results ----
+  results <- data.frame(
+    Team   = team_names,
+    Wins   = wins,
+    Losses = losses,
+    Rating = round(r, 4)
+  )
+  results <- results[order(-results$Rating), ]
+  results$Rank <- 1:n_teams
+  rownames(results) <- NULL
+
+  print(results)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+#Massey's method:
+teams <- sort(unique(c(df_scores$Team_1, df_scores$Team_2)))
+n <- length(teams)
+
+M <- matrix(0, nrow = n, ncol = n)
+rownames(M) <- colnames(M) <- teams
+p <- numeric(n)
+names(p) <- teams
+
+for(i in 1:nrow(df_scores)) {
+  t1 <- df_scores$Team_1[i]
+  t2 <- df_scores$Team_2[i]
+  diff <- df_scores$Point_Differential[i]
+  
+  # Update Diagonal (count games)
+  M[t1, t1] <- M[t1, t1] + 1
+  M[t2, t2] <- M[t2, t2] + 1
+  
+  # Update Off-diagonal (negative matchups)
+  M[t1, t2] <- M[t1, t2] - 1
+  M[t2, t1] <- M[t2, t1] - 1
+  
+  # Update Point Differentials
+  p[t1] <- p[t1] + diff
+  p[t2] <- p[t2] - diff
+}
+
+M2 <- M
+M2[n, ] <- 1
+p2 <- p
+p2[n] <- 0
+
+ratings_vec <- solve(M2, p2)
+
+data.frame(Team = names(ratings_vec),Rating = round(ratings_vec, 3)) %>%
+  arrange(desc(Rating)) %>%
+  mutate(Rank = row_number())
+```
+
+### Part 4: Cutting‑Edge Methods for Ranking Sports Teams
+
+In this part of the project you will explore **modern and advanced approaches** to ranking teams beyond Colley’s and Massey’s methods.
+
+1.  **Survey of Methods**
+
+    Research at least **three different advanced approaches** to ranking sports teams. These can include methods from statistics, machine learning, network science, or other quantitative areas. For example, you might look at:
+
+    -   **PageRank‑based methods** (applying ideas from network analysis),\
+
+    -   **Elo ratings and variants** (used in chess, soccer, and esports),\
+        This method could be better because it will display how wins and losses effect the team as a whole. This method would consider each teams current elo before they play. So if team A has an elo rating of 2000 and team B and an elo rating of 1000, if team B wins they would get more elo compared to if team A wins. Overall, this could make the season more interesting because it makes the ranking a lot closer. This method would only use the wins and loses of a team to determine its elo. The higher elo the better the team has been playing. This method would be a very different method compared to the simpler methods. Even though this only takes into account the wins and losses, it takes into account the elo of the team that they are playing which determines how much elo they either gain if they win or lose if they lost.\
+        <https://en.wikipedia.org/wiki/Elo_rating_system>\
+
+    -   **Bayesian models** (e.g., hierarchical models that estimate team strength with uncertainty),\
+
+    -   **Markov chain methods**,
+
+        The Markov chain methods or the linear regression method, uses machine learning to not only predict the outcome of games but also to rank the teams. This method is also really good at predicting march madness as well as analyzing in game win probabilities and the impact of slow paced strategies. Markov chain uses single game probabilities are placed in a chain where each team is a state. Just like the elo method the state of the team determines how much credit you get from the game. If you beat a good team you get more credit but if you beat a bad team you barely get any credit. To do this we only need the wins and losses, point differential, court location whether you are either home, away or at a neutral site, and how good the opponent is. This can be better than standard methods because it takes into consideration the status of the opposing team, which can help with showing which teams play good, against better teams. This stat alone could show us the level of talent that each team are playing against and put that into consideration when ranking.\
+        <https://en.wikipedia.org/wiki/Markov_chain>\
+
+    -   **Adjusted plus‑minus** in basketball,
+
+        This method could be better for ranking basketball teams because instead of the usual ranking systems it measures the teams net point differential per possession, accurately isolating performance by controlling for teammate quality, opponent's strengths and weaknesses, and game context like if it is a rivalery game. Another reason that a adjusted plus-minus would be that it takes into account the little things that are not on a score card. For example, defensive minded players do not get a lot of credit but are a very crucial part of a good team, pass first players that create open shots for the team which makes scoring the ball easier. This method would be better than the traditional ranking method because you know more about each individual teammate and how they work together to either win or lose.
+
+        <https://en.wikipedia.org/wiki/Adjusted_Plus_Minus>
+
+    -   **Random forest or other ML prediction models**.
+
+    Summarize each method in **one or two paragraphs**, including:
+
+    -   a brief description of how it works,
+    -   what information it uses (wins/losses, scores, point spreads, player data, etc.),
+    -   and why it might be advantageous compared to simpler methods.
+
+2.  **Detailed Explanation of One Method**
+
+    Choose **one of the methods** from your survey and explain it in more depth. Your explanation should include:
+
+    -   the **mathematical idea** or model behind the method,
+    -   how it is applied to sports ranking,
+    -   at least **one graphic or visualization** (this can be a diagram of how the method works, a plot of scores vs. ratings, etc.),
+    -   and at least **one concrete example** (for instance: how the method would rank a small set of teams or how it works on actual league data).
+
+    You may illustrate the method with equations, diagrams, or small datasets.\
+    \
+    The name ELO comes from Arpad Elo who was a Hungarian born physicist who spent most of his career at Marquette University in Milwaukee. He created the method because the method used for chess rankings at the time was very inaccurate. Elo had a better much simpler way of finding ranks; predict the outcome rank first and then adjust ratings based on if reality matched the prediction. There are two steps: 1, calculate an expected score and 2, adjust ratings whether the prediction was right or wrong. The formula is E=1/(1+10\^((Rb-Ra)/400)), where Ra is your rating and Rb is your opponents rating. 400 is a scaling constant that Elo chose so it roughly gives a 200 ranking point gap a 75% win probability to the player with the higher rank. ![](clipboard-2106117347.png)
+
+    This shows step 1 which predicits the winner of the match. The last column of the data is your win probability percentage. Step 2 is where you get your new rating. The formula for this is New Rating = Old Rating + K(Actual-Expected). The actual variable is either 1 for a win, 0 for a loss, or .5 for a draw. Expected is your win probability percentage as a decimal. The bigger the upset the bigger the change in ranking for the underdog. K factor is used as a controlling factor. For example if you are a newer player you will have a larger K value and the higher rank you get and the better you are, the smaller your K value will be. The K factor will also vary across platforms and games that use Elo ratings. ![](clipboard-1390036509.png)
+
+    Concrete Example: Say we have three teams all starting at 1500 (a conventional default):
+
+    Game 1: Michigan (1500) vs Indiana (1500)
+
+    E_Michigan = 1 / (1 + 10\^(0/400)) = 0.5 Michigan wins, K = 32:
+
+    R_Michigan = 1500 + 32(1 - 0.5) = 1516
+
+    R_Indiana = 1500 + 32(0 - 0.5) = 1484
+
+    Game 2: Michigan (1516) vs Wisconsin (1500) E_Michigan = 1 / (1 + 10\^((1500-1516)/400)) = 1 / (1 + 10\^(-0.04)) = 0.523
+
+    Wisconsin upsets Michigan, K = 32:
+
+    R_Wisconsin = 1500 + 32(1 - 0.477) = 1516.7 R_Michigan = 1516 + 32(0 - 0.523) = 1499.3
+
+    Notice Michigan drops back near 1500 because losing to an equal opponent is unsurprising.
+
+    Game 3: Wisconsin (1516.7) vs Indiana (1484) E_Wisconsin = 1 / (1 + 10\^((1484-1516.7)/400)) = 1 / (1 + 10\^(-0.082)) = 0.547
+
+    Indiana upsets Wisconsin:
+
+    R_Indiana = 1484 + 32(1 - 0.453) = 1501.5 R_Wisconsin = 1516.7 + 32(0 - 0.547) = 1499.2
+
+    Final Rankings
+
+    1 Indiana 1501.53
+
+    2 Michigan 1499.3
+
+    3 Wisconsin 1499.2
+
+    ELO Rating System Explained [Complete 2026 Guide] (learnclash.com)
+
+3.  **References**
+
+    Cite **all references** you used in this part. This includes papers, blog posts, textbooks, websites, and any other sources. Use a consistent citation style (for example, APA, MLA, or Chicago).
+
+    You may include citations inline or in a reference section at the end of this part.
+
+    “Adjusted plus Minus.” *Wikipedia*, Wikimedia Foundation, 25 Feb. 2026, en.wikipedia.org/wiki/Adjusted_Plus_Minus.
+
+    “Elo Rating System.” *Wikipedia*, Wikimedia Foundation, 7 May 2026, en.wikipedia.org/wiki/Elo_rating_system.
+
+    “Markov Chain.” *Wikipedia*, Wikimedia Foundation, 28 Apr. 2026, en.wikipedia.org/wiki/Markov_chain.
+
+    Moosmann, David. “Elo Rating System Explained [Complete 2026 Guide].” *LearnClash*, 6 May 2026, learnclash.com/blog/elo-rating-system.
+
+### Part 5: Group Member Contributions
+
+Provide a **summary of each group member’s contributions** to this project. Your summary should include:
+
+-   **Time spent**: An approximate total of hours each member spent working on the project.\
+    Connor Bangs has 8-10 hours on this project, and Seth Barnick has 8-10 hours on this project.
+
+-   **Project contributions**: Specify which parts of the project each member worked on (for example, Part 1: Colley’s method, Part 2: Massey’s method, Part 3: Real data analysis, Part 4: Cutting-edge methods, Part 5: documentation).
+
+    Connor did part 2, massey's method responses for part 3, question 1 of part 4
+
+    Seth did part 1, Colley's method responses for part 3, question 2 of part 4
+
+The purpose of this section is to ensure that all group members are recognized for their work and to give instructors a clear view of how tasks were shared. Be honest and specific in your descriptions.
